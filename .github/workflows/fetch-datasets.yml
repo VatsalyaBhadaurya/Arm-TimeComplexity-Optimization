@@ -1,10 +1,7 @@
 name: Fetch datasets from Hugging Face
 
+# Run manually (Actions tab -> Fetch datasets -> Run workflow) to refresh the datasets.
 on:
-  push:
-    paths:
-      - .github/workflows/fetch-datasets.yml
-      - .gitignore
   workflow_dispatch:
 
 permissions:
@@ -54,5 +51,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add bimaual_dataset_new_1 deksha_data_330_1
-          git commit -m "Add dataset trajectories (data/ + meta/, videos excluded)"
+          if git diff --cached --quiet; then echo "Datasets unchanged"; exit 0; fi
+          git commit -m "Update dataset trajectories (data/ + meta/, videos excluded)"
           git push

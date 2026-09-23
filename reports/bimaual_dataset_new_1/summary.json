@@ -1,0 +1,71 @@
+{
+  "episodes_parquet": 201,
+  "episodes_in_meta": 203,
+  "frames": 191098,
+  "frames_in_meta": 192898,
+  "fps": 30.0,
+  "tasks": [
+    "pick the sprite bottle from the right box and place it in the left box"
+  ],
+  "joint_names": [
+    "left_joint_1",
+    "left_joint_2",
+    "left_joint_3",
+    "left_joint_4",
+    "left_joint_5",
+    "left_joint_6",
+    "left_joint_7",
+    "left_gripper_left_joint",
+    "right_joint_1",
+    "right_joint_2",
+    "right_joint_3",
+    "right_joint_4",
+    "right_joint_5",
+    "right_joint_6",
+    "right_joint_7",
+    "right_gripper_right_joint"
+  ],
+  "duration_s": {
+    "count": 201.0,
+    "mean": 31.69,
+    "std": 4.59,
+    "min": 14.17,
+    "25%": 30.0,
+    "50%": 30.03,
+    "75%": 30.03,
+    "max": 40.03
+  },
+  "common_durations_s": {
+    "30.03": 75,
+    "30.0": 69,
+    "40.0": 33,
+    "40.03": 9,
+    "25.03": 8
+  },
+  "mean_s": {
+    "duration_s": 31.691,
+    "idle_start_s": 0.843,
+    "pause_s": 4.69,
+    "short_idle_s": 0.901,
+    "active_s": 24.861,
+    "idle_end_s": 0.396,
+    "left_active_s": 9.591,
+    "right_active_s": 18.634,
+    "both_active_s": 3.365
+  },
+  "total_hours": 1.769,
+  "idle_fraction": 0.2155,
+  "pauses_per_episode": 8.32,
+  "reversals_per_episode": 26.17,
+  "grip_events_per_episode": 7.81,
+  "action_lag_frames_median": 3.0,
+  "activity_params": {
+    "arm_speed_thr": 0.05,
+    "gripper_speed_thr": 0.01,
+    "fill_gap_s": 0.2,
+    "min_motion_s": 0.1,
+    "pause_min_s": 0.3,
+    "reversal_amp": 0.02,
+    "smooth_window": 9
+  }
+}
