@@ -107,6 +107,7 @@
   },
   "optimization": {
     "profile": "balanced",
+    "steps": 3,
     "params": {
       "max_speedup": 2.0,
       "pause_max_speedup": 20.0,

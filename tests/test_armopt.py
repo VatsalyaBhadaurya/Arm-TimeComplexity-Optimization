@@ -4,7 +4,8 @@ from scipy.interpolate import CubicSpline
 
 from armopt.analysis import ActivityParams, analyze_episode, count_reversals, gripper_events, runs
 from armopt.io import Episode
-from armopt.retime import Limits, RetimeParams, retime_episode, topp
+from armopt.retime import (Limits, RetimeParams, render, retime_episode, step1_trim_idle, step2_compress_pauses,
+                           step3_speed_up_motion, topp)
 
 FPS = 30.0
 J = 16
@@ -98,3 +99,45 @@ def test_retime_never_slower_than_demo():
     ep = synthetic_episode(amp=2.0, move=1.0)  # demo faster than the limits
     _, _, summary = retime_episode(ep, limits(v=0.5, a=1.0), RetimeParams(max_speedup=3.0))
     assert summary["new_s"] <= summary["orig_s"]
+
+
+def durations(plan, kind):
+    return [p.duration for p in plan.pieces if p.kind == kind]
+
+
+def test_step1_only_trims_idle():
+    ep = synthetic_episode(idle_start=2.0, idle_end=3.0)
+    plan = step1_trim_idle(ep)
+    assert [p.kind for p in plan.pieces] == ["pad", "move", "pause", "move", "pad"]
+    assert not any(p.retimed for p in plan.pieces)  # everything kept plays at demo speed
+    assert plan.duration == pytest.approx(len(ep.state) / FPS - 5.0, abs=0.6)
+
+
+def test_step2_only_touches_pauses():
+    ep = synthetic_episode(pause=2.0)
+    rp = RetimeParams()
+    p1 = step1_trim_idle(ep, rp)
+    p2 = step2_compress_pauses(p1, limits(), rp)
+    assert durations(p2, "move") == durations(p1, "move")
+    (before,), (after,) = durations(p1, "pause"), durations(p2, "pause")
+    assert rp.dwell_s - 1e-9 <= after < before
+
+
+def test_step3_only_touches_motion():
+    ep = synthetic_episode()
+    lim, rp = limits(), RetimeParams(max_speedup=3.0)
+    p2 = step2_compress_pauses(step1_trim_idle(ep, rp), lim, rp)
+    p3 = step3_speed_up_motion(p2, lim, rp)
+    assert durations(p3, "pause") == durations(p2, "pause")
+    assert all(a < b for a, b in zip(durations(p3, "move"), durations(p2, "move")))
+
+
+def test_retime_episode_matches_the_steps_chained():
+    ep = synthetic_episode()
+    lim, rp = limits(), RetimeParams()
+    plan = step3_speed_up_motion(step2_compress_pauses(step1_trim_idle(ep, rp), lim, rp), lim, rp)
+    _, src_chain, _ = render(plan, lim)
+    _, src, summary = retime_episode(ep, lim, rp)
+    np.testing.assert_array_equal(src, src_chain)
+    shorter = [retime_episode(ep, lim, rp, steps=k)[2]["new_s"] for k in (1, 2, 3)]
+    assert shorter[0] > shorter[1] > shorter[2] == summary["new_s"]

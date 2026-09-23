@@ -5,7 +5,10 @@ Writes
   reports/<dataset>/optimization_<profile>.csv   per-episode before/after durations
   reports/<dataset>/optimization_summary.json
   optimized/<dataset>/                            LeRobot copy retimed with --write-profile
-Usage: python scripts/optimize.py [--write-profile balanced]
+Usage: python scripts/optimize.py [--write-profile balanced] [--steps 1|2|3]
+
+--steps limits the written dataset to the first N steps
+(1 = trim idle, 2 = + compress pauses, 3 = + speed up motion).
 """
 import argparse
 import json
@@ -18,10 +21,13 @@ from _common import DATASETS, OPTIMIZED, REPORTS, ROOT
 from armopt.io import episode_stats, load_dataset, write_episode, write_meta
 from armopt.retime import PROFILES, estimate_limits, retime_episode
 
+STEP_LABELS = {1: "Trim idle start/end", 2: "Compress pauses", 3: "Speed up motion"}
+
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--write-profile", default="balanced", choices=list(PROFILES))
+    ap.add_argument("--steps", type=int, default=3, choices=[1, 2, 3])
     args = ap.parse_args()
 
     for name in DATASETS:
@@ -45,8 +51,9 @@ def main():
             if write and dest.exists():
                 shutil.rmtree(dest)
             rows, new_eps, stats, gidx = [], [], [], 0
+            steps = args.steps if write else 3
             for ep in episodes:
-                new, src, row = retime_episode(ep, lim, rp)
+                new, src, row = retime_episode(ep, lim, rp, steps=steps)
                 rows.append(row)
                 if write:
                     chunk = ep.index // ds.info["chunks_size"]
@@ -76,9 +83,23 @@ def main():
                 "episodes_acc_peak_above_demo": int((df.acc_ratio_max > df.demo_acc_ratio_max).sum()),
             }
             if write:
-                write_meta(dest, ds, new_eps, stats, {"profile": prof, **summary[prof], "limits": "see reports"})
+                write_meta(dest, ds, new_eps, stats,
+                           {"profile": prof, "steps": steps, **summary[prof], "limits": "see reports"})
             print(f"{name} {prof:9s} saved {summary[prof]['time_saved_pct']:5.1f}%  "
                   f"mean {summary[prof]['mean_orig_s']:.1f}s -> {summary[prof]['mean_new_s']:.1f}s")
+        # How much each step contributes, with the written profile's parameters.
+        rp = PROFILES[args.write_profile]
+        orig = sum(len(ep.state) for ep in episodes) / ds.fps
+        breakdown, prev = [], orig
+        for step, label in STEP_LABELS.items():
+            total = sum(retime_episode(ep, lim, rp, steps=step)[2]["new_s"] for ep in episodes)
+            breakdown.append({"step": step, "label": label, "total_s": round(total, 1),
+                              "step_saved_pct": round(100 * (prev - total) / orig, 2),
+                              "cumulative_saved_pct": round(100 * (1 - total / orig), 2)})
+            print(f"{name} step {step} {label:22s} -{breakdown[-1]['step_saved_pct']:4.1f}%  "
+                  f"(total -{breakdown[-1]['cumulative_saved_pct']:.1f}%)")
+            prev = total
+        summary["step_breakdown"] = {"profile": args.write_profile, "orig_s": round(orig, 1), "steps": breakdown}
         (out / "optimization_summary.json").write_text(json.dumps(summary, indent=2))
 
 

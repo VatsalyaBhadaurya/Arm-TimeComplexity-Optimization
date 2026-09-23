@@ -79,5 +79,32 @@
     "demo_acc_ratio_max_median": 1.888,
     "episodes_vel_peak_above_demo": 0,
     "episodes_acc_peak_above_demo": 0
+  },
+  "step_breakdown": {
+    "profile": "balanced",
+    "orig_s": 6369.9,
+    "steps": [
+      {
+        "step": 1,
+        "label": "Trim idle start/end",
+        "total_s": 6141.5,
+        "step_saved_pct": 3.59,
+        "cumulative_saved_pct": 3.59
+      },
+      {
+        "step": 2,
+        "label": "Compress pauses",
+        "total_s": 5604.4,
+        "step_saved_pct": 8.43,
+        "cumulative_saved_pct": 12.02
+      },
+      {
+        "step": 3,
+        "label": "Speed up motion",
+        "total_s": 5305.9,
+        "step_saved_pct": 4.69,
+        "cumulative_saved_pct": 16.7
+      }
+    ]
   }
 }

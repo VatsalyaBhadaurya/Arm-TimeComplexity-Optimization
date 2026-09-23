@@ -96,25 +96,43 @@ Findings:
 
 ## 3. How the optimization works
 
-Implemented in [`armopt/retime.py`](../armopt/retime.py). For each episode:
+Implemented in [`armopt/retime.py`](../armopt/retime.py) as three steps, each a separate
+function that can be run and checked on its own. Each step only changes its own kind of
+segment.
 
-1. **Split into motion segments and pauses.** A frame counts as moving if either arm's
-   joint speed is above 0.05 rad/s or a gripper moves faster than 0.01 m/s. Gaps under 0.2 s are
-   bridged, and bursts under 0.1 s are treated as noise. Hesitations under 0.3 s stay inside the motion.
-2. **Trim idle** before the first and after the last motion (0.1 s kept on each side).
-3. **Compress pauses.** Each pause is crossed as fast as the limits allow, but keeps at least
-   0.1 s, or 0.3 s right after a gripper action so the grasp can settle.
-4. **Retime each motion segment** with time-optimal path parameterization (a TOPP-style
-   backward and forward pass over the path speed), starting and ending at rest, subject to
-   per-joint velocity and acceleration limits and a maximum speed-up over the demo.
-   The acceleration budget is split between following path curvature and changing speed.
-   That keeps every sample feasible on noisy recorded paths (exact TOPP chattered
-   between stop and full speed on encoder noise).
-5. **Never slower than the demo.** If a segment can't be sped up within the limits, it
-   keeps its original timing, which the robot has already executed.
-6. **Both arms share one time map**, so bimanual coordination and hand-overs are unchanged.
-   Output is resampled at 30 fps; `state` and `action` are interpolated at the same source
-   times, and a `source_frame` column records where each output frame came from.
+**Before step 1: split into motion and pauses.** A frame counts as moving if either arm's
+joint speed is above 0.05 rad/s or a gripper moves faster than 0.01 m/s. Gaps under 0.2 s
+are bridged, and bursts under 0.1 s are treated as noise. Hesitations under 0.3 s stay
+inside the motion.
+
+| Step | Function | What it does |
+|---|---|---|
+| 1 | `step1_trim_idle` | Drops idle time before the first and after the last motion (0.1 s kept on each side). Everything kept still plays at demo speed. |
+| 2 | `step2_compress_pauses` | Crosses each mid-task pause as fast as the limits allow, keeping at least 0.1 s, or 0.3 s right after a gripper action so the grasp can settle. |
+| 3 | `step3_speed_up_motion` | Retimes each motion segment with time-optimal path parameterization (TOPP-style backward and forward pass over the path speed), starting and ending at rest, within per-joint velocity and acceleration limits and a maximum speed-up over the demo. |
+
+Time saved by each step (balanced profile, all episodes):
+
+| Step | bimaual_dataset_new_1 (orig. 1.77 h) | deksha_data_330_1 (orig. 3.67 h) |
+|---|---|---|
+| 1. Trim idle start/end | −3.6% (total −3.6%) | −2.8% (total −2.8%) |
+| 2. Compress pauses | −8.4% (total −12.0%) | −10.1% (total −12.9%) |
+| 3. Speed up motion | −4.7% (total −16.7%) | −6.2% (total −19.1%) |
+
+Walk a single episode through the steps with
+`python scripts/run_steps.py --dataset deksha_data_330_1 --episode 0`.
+`python scripts/optimize.py --steps 2` writes a dataset with only steps 1 and 2 applied.
+
+Rules that hold in every step:
+
+- **Never slower than the demo.** If a segment can't be sped up within the limits, it
+  keeps its original timing, which the robot has already executed.
+- **Both arms share one time map**, so bimanual coordination and hand-overs are unchanged.
+- **The acceleration budget is split** between following path curvature and changing
+  speed. That keeps every sample feasible on noisy recorded paths (exact TOPP chattered
+  between stop and full speed on encoder noise).
+- **Output is resampled at 30 fps.** `state` and `action` are interpolated at the same
+  source times, and a `source_frame` column records where each output frame came from.
 
 Cost: O(N·J) per episode (N frames, J = 16 joints), about 10 ms per episode. All
 531 episodes × 3 profiles run in about 25 s.

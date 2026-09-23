@@ -21,6 +21,37 @@ The recorded joint path is never changed; only the timing along it is. No episod
 slower. The biggest remaining opportunity is that the two arms mostly take turns (both
 move together only 2–3 s per episode). See section 5 of the report.
 
+## The method, step by step
+
+Time-optimal retiming of the recorded trajectories. The path never changes, only the timing.
+
+| Step | Function (`armopt/retime.py`) | bimaual | deksha |
+|---|---|---|---|
+| 1. Trim idle before first / after last motion | `step1_trim_idle` | −3.6% | −2.8% |
+| 2. Compress mid-task pauses (keep 0.1 s, 0.3 s after a grasp) | `step2_compress_pauses` | −8.4% | −10.1% |
+| 3. Speed up motion (TOPP within p99 joint speed/accel, ≤ 2×) | `step3_speed_up_motion` | −4.7% | −6.2% |
+| **Total (balanced)** | `retime_episode` | **−16.7%** | **−19.1%** |
+
+```bash
+python scripts/run_steps.py --dataset deksha_data_330_1 --episode 0   # one episode, step by step
+python scripts/optimize.py --steps 2                                  # write a dataset with steps 1-2 only
+```
+
+```python
+from armopt.io import load_dataset
+from armopt.retime import PROFILES, estimate_limits, render, step1_trim_idle, step2_compress_pauses, step3_speed_up_motion
+
+ds = load_dataset("deksha_data_330_1")
+rp = PROFILES["balanced"]
+lim = estimate_limits(ds.episodes(), rp.limit_percentile)
+ep = ds.load_episode(ds.episode_files()[0])
+
+plan = step1_trim_idle(ep, rp)
+plan = step2_compress_pauses(plan, lim, rp)
+plan = step3_speed_up_motion(plan, lim, rp)
+optimized_episode, source_frame, summary = render(plan, lim)
+```
+
 ## Layout
 
 | Path | What |
@@ -30,6 +61,7 @@ move together only 2–3 s per episode). See section 5 of the report.
 | `scripts/analyze.py` | per-episode motion/idle analysis → `reports/<dataset>/` |
 | `scripts/optimize.py` | retime all episodes under 3 profiles → `reports/<dataset>/`, `optimized/<dataset>/` |
 | `scripts/report.py` | builds `reports/REPORT.md` and `reports/figures/` |
+| `scripts/run_steps.py` | walks one episode through steps 1–3 and prints the time after each |
 | `optimized/<dataset>/` | retimed dataset (balanced profile), LeRobot layout, with a `source_frame` column for retiming videos |
 | `tests/` | unit tests |
 | `.github/workflows/fetch-datasets.yml` | manual workflow that re-downloads the datasets from Hugging Face |
