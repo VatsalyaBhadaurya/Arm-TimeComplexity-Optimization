@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - .github/workflows/fetch-datasets.yml
+      - .gitignore
   workflow_dispatch:
 
 permissions:
@@ -26,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           for ds in bimaual_dataset_new_1 deksha_data_330_1; do
-            git rm -q --cached "$ds" 2>/dev/null || true
+            git rm -r -q --cached "$ds" 2>/dev/null || true
             rm -rf "$ds"
             python - "$ds" << 'PY'
           import sys
