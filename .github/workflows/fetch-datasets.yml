@@ -1,0 +1,57 @@
+name: Fetch datasets from Hugging Face
+
+on:
+  push:
+    paths:
+      - .github/workflows/fetch-datasets.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install huggingface_hub
+        run: pip install -q huggingface_hub
+
+      - name: Replace submodule pointers with dataset files (data/ + meta/ only)
+        run: |
+          set -euo pipefail
+          for ds in bimaual_dataset_new_1 deksha_data_330_1; do
+            git rm -q --cached "$ds" 2>/dev/null || true
+            rm -rf "$ds"
+            python - "$ds" << 'PY'
+          import sys
+          from huggingface_hub import snapshot_download
+          ds = sys.argv[1]
+          snapshot_download(
+              repo_id=f"aiengineer56/{ds}",
+              repo_type="dataset",
+              local_dir=ds,
+              allow_patterns=["data/**", "meta/**", "README.md"],
+          )
+          PY
+            rm -rf "$ds/.cache"
+            echo "== $ds"; du -sh "$ds"; find "$ds" -type f | wc -l
+          done
+
+      - name: Refuse files over GitHub's 100 MB limit
+        run: |
+          big=$(find bimaual_dataset_new_1 deksha_data_330_1 -type f -size +95M)
+          if [ -n "$big" ]; then echo "Files too large:"; echo "$big"; exit 1; fi
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bimaual_dataset_new_1 deksha_data_330_1
+          git commit -m "Add dataset trajectories (data/ + meta/, videos excluded)"
+          git push
